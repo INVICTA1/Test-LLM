@@ -1,0 +1,14 @@
+Creating test_validator_run ... 
+Creating test_validator_run ... done
+Validating 3 instance(s)
+Running evaluation...
+/usr/local/lib/python3.10/runpy.py:126: RuntimeWarning: 'swebench.harness.run_evaluation' found in sys.modules after import of package 'swebench.harness', but prior to execution of 'swebench.harness.run_evaluation'; this may result in unpredictable behaviour
+  warn(RuntimeWarning(msg))
+Running 3 instances...
+Evaluation:   0% 0/3 [00:00<?, ?it/s, error=0, ✓=0, ✖=0]Error building image astropy__astropy-11693-fail: 404 Client Error for http+docker://localhost/v1.49/images/create?tag=latest&fromImage=swebench%2Fsweb.eval.x86_64.astropy_1776_astropy-11693-fail: Not Found ("pull access denied for swebench/sweb.eval.x86_64.astropy_1776_astropy-11693-fail, repository does not exist or may require 'docker login': denied: requested access to the resource is denied")
+Check (logs/run_evaluation/validation/gold/astropy__astropy-11693-fail/run_instance.log) for more information.
+Evaluation:   0% 0/3 [00:02<?, ?it/s, ✓=0, ✖=0, error=1]Evaluation:  33% 1/3 [00:02<00:04,  2.42s/it, ✓=0, ✖=0, error=1]Error building image django__django-10087: 409 Client Error for http+docker://localhost/v1.49/containers/create?name=sweb.eval.django__django-10087.validation&platform=linux%2Fx86_64: Conflict ("Conflict. The container name "/sweb.eval.django__django-10087.validation" is already in use by container "bd94ff84b2b3df1f3992e86e3806afd3c05b5f41eac26981bcdf27a6e8b56a9c". You have to remove (or rename) that container to be able to reuse that name.")
+Check (logs/run_evaluation/validation/gold/django__django-10087/run_instance.log) for more information.
+Evaluation:  33% 1/3 [03:37<00:04,  2.42s/it, ✓=0, ✖=0, error=2]Evaluation:  67% 2/3 [03:37<02:07, 127.75s/it, ✓=0, ✖=0, error=2]^C
+Aborted!
+1

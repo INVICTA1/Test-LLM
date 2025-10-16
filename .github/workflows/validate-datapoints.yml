@@ -1,0 +1,78 @@
+name: Validate SWE-bench Data Points
+
+on:
+  push:
+    paths:
+      - 'task-release-2025-07-29-115124/data_points/**/*.json'
+  pull_request:
+    paths:
+      - 'task-release-2025-07-29-115124/data_points/**/*.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep 'data_points/.*\.json$' | xargs -I{} basename {} .json || true)
+          else
+            FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} | grep 'data_points/.*\.json$' | xargs -I{} basename {} .json || true)
+          fi
+          
+          if [ -z "$FILES" ]; then
+            echo "No data point files changed"
+            echo "count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Convert to --instance-id arguments
+          INSTANCES=""
+          for f in $FILES; do
+            INSTANCES="$INSTANCES --instance-id $f"
+          done
+          
+          echo "instances=$INSTANCES" >> $GITHUB_OUTPUT
+          echo "count=$(echo $FILES | wc -w)" >> $GITHUB_OUTPUT
+          echo "Changed instances: $INSTANCES"
+      
+      - name: Setup Python
+        if: steps.changed.outputs.count != '0'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        if: steps.changed.outputs.count != '0'
+        working-directory: task-release-2025-07-29-115124
+        run: |
+          pip install uv
+          uv venv
+          uv pip install -e .
+      
+      - name: Run validation
+        if: steps.changed.outputs.count != '0'
+        working-directory: task-release-2025-07-29-115124
+        run: |
+          source .venv/bin/activate
+          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800
+      
+      - name: Summary
+        if: always() && steps.changed.outputs.count != '0'
+        run: |
+          echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "Validated ${{ steps.changed.outputs.count }} data point(s)" >> $GITHUB_STEP_SUMMARY
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ All data points are valid" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Validation failed - check logs for details" >> $GITHUB_STEP_SUMMARY
+          fi
+

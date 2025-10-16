@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # SWE-bench downloader service
+  downloader:
+    build: .
+    container_name: swe-bench-downloader
+    volumes:
+      - ./task-release-2025-07-29-115124/data_points:/app/data_points
+      - ./output:/app/output
+      # Mount code for live updates
+      - ./task-release-2025-07-29-115124/swe_bench_validator:/app/swe_bench_validator
+      - ./task-release-2025-07-29-115124/swe_bench_downloader:/app/swe_bench_downloader
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    working_dir: /app
+    command: ["python", "-m", "swe_bench_downloader", "--help"]
+
+  # SWE-bench validator service (for running evaluations)
+  # Requires Docker socket access to run SWE-bench evaluations
+  validator:
+    build: .
+    container_name: swe-bench-validator
+    volumes:
+      - ./task-release-2025-07-29-115124/data_points:/app/data_points
+      - ./output:/app/output
+      # Mount code for live updates (no rebuild needed!)
+      - ./task-release-2025-07-29-115124/swe_bench_validator:/app/swe_bench_validator
+      - ./task-release-2025-07-29-115124/swe_bench_downloader:/app/swe_bench_downloader
+      # Mount Docker socket to allow Docker-in-Docker for SWE-bench evaluations
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount Docker binary (if needed)
+      - /usr/bin/docker:/usr/bin/docker:ro
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    working_dir: /app
+    command: ["python", "-m", "swe_bench_validator", "data_points"]
+    privileged: true  # Required for Docker operations
+    profiles:
+      - validator
+
+  # Interactive shell for development
+  shell:
+    build: .
+    container_name: swe-bench-shell
+    volumes:
+      - ./task-release-2025-07-29-115124/data_points:/app/data_points
+      - ./output:/app/output
+      # Mount code for live updates
+      - ./task-release-2025-07-29-115124/swe_bench_validator:/app/swe_bench_validator
+      - ./task-release-2025-07-29-115124/swe_bench_downloader:/app/swe_bench_downloader
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    working_dir: /app
+    command: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    privileged: true
+    profiles:
+      - shell
+
