@@ -1,0 +1,15 @@
+{
+  "repo": "django/django",
+  "instance_id": "test-invalid-example",
+  "base_commit": "02cd16a7a04529c726e5bb5a13d5979119f25c7d",
+  "patch": "diff --git a/django/core/management/commands/sqlmigrate.py b/django/core/management/commands/sqlmigrate.py\n--- a/django/core/management/commands/sqlmigrate.py\n+++ b/django/core/management/commands/sqlmigrate.py\n@@ -1,3 +1,4 @@\n+# This is a broken patch that will fail\n+import nonexistent_module\n from django.core.management.base import BaseCommand, CommandError\n",
+  "test_patch": "diff --git a/tests/migrations/test_commands.py b/tests/migrations/test_commands.py\n--- a/tests/migrations/test_commands.py\n+++ b/tests/migrations/test_commands.py\n@@ -1434,6 +1434,10 @@ def test_migrate_app_name_specified_as_label(self):\n         with self.assertRaisesMessage(CommandError, self.did_you_mean_auth_error):\n             call_command('migrate', 'django.contrib.auth')\n \n+    def test_broken_validation(self):\n+        with self.assertRaisesMessage(CommandError, self.nonexistent_app_error):\n+            call_command('sqlmigrate', 'nonexistent_app', '0002')\n+\n",
+  "problem_statement": "Test invalid data point - broken patch",
+  "hints_text": "",
+  "created_at": "2025-01-01T00:00:00Z",
+  "version": "2.2",
+  "FAIL_TO_PASS": "[\"test_broken_validation\"]",
+  "PASS_TO_PASS": "[\"test_migrate\"]",
+  "environment_setup_commit": "02cd16a7a04529c726e5bb5a13d5979119f25c7d"
+}
+
