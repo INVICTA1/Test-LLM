@@ -62,13 +62,37 @@ jobs:
           uv venv
           uv pip install -e .
       
-      - name: Run validation
+      - name: Run enhanced validation
+        id: run-validation
         if: steps.changed.outputs.count != '0'
         working-directory: task-release-2025-07-29-115124
+        continue-on-error: true
         run: |
           source .venv/bin/activate
-          echo "Validating ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
-          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose
+          echo "🔍 Running enhanced validation on ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
+          # Run validation and capture output
+          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose --model-name gold > validation_output.log 2>&1
+          validation_exit_code=$?
+          
+          # Always capture output for PR comments
+          echo "validation_output<<EOF" >> $GITHUB_OUTPUT
+          cat validation_output.log >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Set validation status for later use
+          echo "validation_success=$([ $validation_exit_code -eq 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          
+          # Don't exit here - let the job continue to create PR comments
+      
+      - name: Check validation status
+        if: steps.changed.outputs.count != '0'
+        run: |
+          if [ "${{ steps.run-validation.outputs.validation_success }}" != "true" ]; then
+            echo "❌ Validation failed - blocking merge"
+            exit 1
+          else
+            echo "✅ Validation passed - allowing merge"
+          fi
       
       - name: Comment on PR
         if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
@@ -79,26 +103,42 @@ jobs:
             const status = '${{ job.status }}';
             const instances = '${{ steps.changed.outputs.instances }}';
             const count = '${{ steps.changed.outputs.count }}';
+            const validationOutput = `${{ steps.run-validation.outputs.validation_output }}`;
+            const validationSuccess = '${{ steps.run-validation.outputs.validation_success }}' === 'true';
             
-            let comment = `# 🔍 SWE-bench Validation Report\n\n`;
+            let comment = `# 🔍 Enhanced SWE-bench Validation Report\n\n`;
             comment += `**Validated:** ${count} data point(s)\n`;
-            comment += `**Instances:** ${instances}\n\n`;
+            comment += `**Instances:** ${instances}\n`;
+            comment += `**Architecture:** Modular with comprehensive validation\n\n`;
             
-            if (status === 'success') {
+            // Use the actual validation success status
+            const validationPassed = validationSuccess;
+            
+            if (validationPassed) {
               comment += `## ✅ All Validations Passed\n\n`;
-              comment += `🎉 **Success!** All data points are valid:\n`;
-              comment += `- ✅ Patches apply correctly\n`;
-              comment += `- ✅ FAIL_TO_PASS tests now pass\n`;
-              comment += `- ✅ PASS_TO_PASS tests continue to pass\n`;
-              comment += `- ✅ No Docker or execution errors\n`;
+              comment += `🎉 **Success!** Enhanced validation completed successfully:\n`;
+              comment += `- ✅ **Data Structure**: All required fields validated\n`;
+              comment += `- ✅ **Patches**: Apply correctly to codebase\n`;
+              comment += `- ✅ **Tests**: FAIL_TO_PASS tests now pass\n`;
+              comment += `- ✅ **Regression**: PASS_TO_PASS tests continue to pass\n`;
+              comment += `- ✅ **Infrastructure**: No Docker or execution errors\n`;
+              comment += `- ✅ **Statistics**: Comprehensive reporting available\n\n`;
+              comment += `### 📋 Enhanced Validation Details\n`;
+              comment += `\`\`\`\n${validationOutput}\n\`\`\``;
             } else {
-              comment += `## ❌ Validation Failed\n\n`;
-              comment += `🚨 **Validation failed!** Possible issues:\n`;
-              comment += `- ❌ Patch doesn't apply to codebase\n`;
-              comment += `- ❌ FAIL_TO_PASS tests still fail\n`;
-              comment += `- ❌ PASS_TO_PASS tests now fail (regression)\n`;
-              comment += `- ❌ Docker build/execution errors\n`;
-              comment += `- ❌ Test execution timeout\n`;
+              comment += `## ❌ Enhanced Validation Failed\n\n`;
+              comment += `🚨 **Validation failed!** Enhanced validation detected issues:\n\n`;
+              comment += `### 📋 Detailed Error Analysis\n`;
+              comment += `\`\`\`\n${validationOutput}\n\`\`\`\n\n`;
+              comment += `### 🔍 Enhanced Error Categories:\n`;
+              comment += `- ❌ **Data Structure**: Missing or invalid required fields\n`;
+              comment += `- ❌ **Repository**: Unknown or unsupported repository\n`;
+              comment += `- ❌ **Patch Format**: Invalid patch format or content\n`;
+              comment += `- ❌ **Test Logic**: FAIL_TO_PASS tests still fail\n`;
+              comment += `- ❌ **Regression**: PASS_TO_PASS tests now fail\n`;
+              comment += `- ❌ **Infrastructure**: Docker build/execution errors\n`;
+              comment += `- ❌ **Timeout**: Test execution exceeded time limit\n`;
+              comment += `- ❌ **Validation**: Enhanced field validation failed\n`;
             }
             
             // Find existing validation comment
