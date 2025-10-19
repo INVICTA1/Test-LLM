@@ -1,9 +1,0 @@
-{
-  "instance_id": null,
-  "repo": null,
-  "base_commit": null,
-  "patch": null,
-  "FAIL_TO_PASS": null,
-  "PASS_TO_PASS": null,
-  "problem_statement": "Test with null values"
-}

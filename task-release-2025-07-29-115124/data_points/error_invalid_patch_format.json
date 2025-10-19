@@ -1,9 +1,0 @@
-{
-  "instance_id": "error_invalid_patch_format",
-  "repo": "django/django",
-  "base_commit": "0000000000000000000000000000000000000000",
-  "patch": "This is not a valid patch format",
-  "FAIL_TO_PASS": ["test_test.py::test_hello"],
-  "PASS_TO_PASS": [],
-  "problem_statement": "Test with invalid patch format"
-}

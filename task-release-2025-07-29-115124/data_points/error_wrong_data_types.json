@@ -1,9 +1,0 @@
-{
-  "instance_id": 12345,
-  "repo": ["django", "django"],
-  "base_commit": 123456789,
-  "patch": 42,
-  "FAIL_TO_PASS": {"not": "an_array"},
-  "PASS_TO_PASS": true,
-  "problem_statement": "Test with completely wrong data types"
-}
