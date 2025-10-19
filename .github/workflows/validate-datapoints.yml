@@ -69,10 +69,20 @@ jobs:
         run: |
           source .venv/bin/activate
           echo "🔍 Running enhanced validation on ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
-          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose --model-name gold > validation_output.log 2>&1 || true
+          # Run validation and capture output
+          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose --model-name gold > validation_output.log 2>&1
+          validation_exit_code=$?
+          
+          # Always capture output for PR comments
           echo "validation_output<<EOF" >> $GITHUB_OUTPUT
           cat validation_output.log >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Set validation status for later use
+          echo "validation_success=$([ $validation_exit_code -eq 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          
+          # Exit with the validation result
+          exit $validation_exit_code
       
       - name: Comment on PR
         if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
@@ -84,15 +94,15 @@ jobs:
             const instances = '${{ steps.changed.outputs.instances }}';
             const count = '${{ steps.changed.outputs.count }}';
             const validationOutput = `${{ steps.run-validation.outputs.validation_output }}`;
+            const validationSuccess = '${{ steps.run-validation.outputs.validation_success }}' === 'true';
             
             let comment = `# 🔍 Enhanced SWE-bench Validation Report\n\n`;
             comment += `**Validated:** ${count} data point(s)\n`;
             comment += `**Instances:** ${instances}\n`;
             comment += `**Architecture:** Modular with comprehensive validation\n\n`;
             
-            // Check if validation actually passed by looking at the output
-            const validationPassed = validationOutput.includes('🎉 All validations passed successfully!') || 
-                                   validationOutput.includes('✅ Resolved:') && !validationOutput.includes('❌ Unresolved:') && !validationOutput.includes('🚨 Errors:');
+            // Use the actual validation success status
+            const validationPassed = validationSuccess;
             
             if (validationPassed) {
               comment += `## ✅ All Validations Passed\n\n`;
