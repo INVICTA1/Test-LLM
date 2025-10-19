@@ -1,0 +1,9 @@
+{
+  "instance_id": "error_empty_test_arrays",
+  "repo": "django/django",
+  "base_commit": "0000000000000000000000000000000000000000",
+  "patch": "diff --git a/test.py b/test.py\n--- a/test.py\n+++ b/test.py\n@@ -1,3 +1,3 @@\n def hello():\n-    return \"Hello World\"\n+    return \"Hello World Updated\"\n",
+  "FAIL_TO_PASS": [],
+  "PASS_TO_PASS": [],
+  "problem_statement": "Test with empty test arrays"
+}

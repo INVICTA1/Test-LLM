@@ -43,7 +43,8 @@ class EnhancedValidator:
         logger.info(f"Initialized EnhancedValidator with data_dir: {data_dir}, model: {model_name}")
     
     def validate(self, files: Optional[List[str]] = None, max_workers: int = 1, 
-                timeout: int = 900, verbose: bool = False) -> Dict[str, Any]:
+                timeout: int = 900, verbose: bool = False, 
+                show_validation_errors: bool = True) -> Dict[str, Any]:
         """
         Validate SWE-bench data points with comprehensive reporting.
         
@@ -61,7 +62,17 @@ class EnhancedValidator:
             
             # Load data points
             data_points = self.loader.load(self.data_dir, files)
-            if not data_points:
+            
+            # If no valid data points but we want to show validation errors
+            if not data_points and show_validation_errors:
+                validation_errors = self._get_validation_errors(self.data_dir, files)
+                return {
+                    "success": False,
+                    "error": "No valid data points found for validation",
+                    "validation_errors": validation_errors,
+                    "statistics": {"total": 0, "valid": 0, "invalid": len(validation_errors), "success_rate": 0.0}
+                }
+            elif not data_points:
                 return {
                     "success": False,
                     "error": "No data points found for validation",
@@ -178,6 +189,10 @@ class EnhancedValidator:
                 if verbose:
                     logger.error(f"STDOUT: {result.stdout}")
                     logger.error(f"STDERR: {result.stderr}")
+                
+                # Try to extract specific error information
+                error_info = self._extract_error_info(result.stderr)
+                evaluation_result["error_details"] = error_info
             else:
                 logger.info("SWE-bench evaluation completed successfully")
             
@@ -250,6 +265,81 @@ class EnhancedValidator:
             "total_instances": len(data_points)
         }
     
+    def _get_validation_errors(self, data_dir: Path, files: Optional[List[str]]) -> List[Dict[str, Any]]:
+        """Get detailed validation errors for all files."""
+        validation_errors = []
+        
+        if files is None:
+            json_files = list(data_dir.glob("*.json"))
+        else:
+            json_files = []
+            for file in files:
+                if not file.endswith('.json'):
+                    file = file + '.json'
+                file_path = data_dir / file
+                if file_path.exists():
+                    json_files.append(file_path)
+        
+        for json_file in json_files:
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    data_point = json.load(f)
+                
+                validation_result = self.loader._validate_comprehensive(data_point, json_file.name)
+                
+                if not validation_result["valid"]:
+                    validation_errors.append({
+                        "file": json_file.name,
+                        "instance_id": data_point.get("instance_id", "unknown"),
+                        "errors": validation_result["errors"],
+                        "warnings": validation_result["warnings"]
+                    })
+                    
+            except Exception as e:
+                validation_errors.append({
+                    "file": json_file.name,
+                    "instance_id": "unknown",
+                    "errors": [f"Failed to load file: {str(e)}"],
+                    "warnings": []
+                })
+        
+        return validation_errors
+    
+    def _extract_error_info(self, stderr: str) -> Dict[str, Any]:
+        """Extract specific error information from stderr."""
+        error_info = {
+            "type": "unknown",
+            "message": "Unknown error",
+            "details": stderr
+        }
+        
+        if "KeyError:" in stderr:
+            # Extract repository name from KeyError
+            import re
+            match = re.search(r"KeyError: '([^']+)'", stderr)
+            if match:
+                repo = match.group(1)
+                error_info.update({
+                    "type": "unknown_repository",
+                    "message": f"Unknown repository: {repo}",
+                    "repository": repo,
+                    "suggestion": "Use a supported repository like 'astropy/astropy' or 'django/django'"
+                })
+        elif "TimeoutExpired" in stderr:
+            error_info.update({
+                "type": "timeout",
+                "message": "Evaluation timed out",
+                "suggestion": "Increase timeout or check for infinite loops"
+            })
+        elif "Docker" in stderr and "error" in stderr.lower():
+            error_info.update({
+                "type": "docker_error",
+                "message": "Docker execution error",
+                "suggestion": "Check Docker installation and permissions"
+            })
+        
+        return error_info
+    
     def _cleanup_temp_files(self, dataset_file: Optional[str], predictions_file: Optional[str]):
         """Clean up temporary files."""
         try:
@@ -270,6 +360,33 @@ class EnhancedValidator:
         
         if not results.get("success", False):
             print(f"❌ Validation failed: {results.get('error', 'Unknown error')}")
+            
+            # Display validation errors if available
+            validation_errors = results.get("validation_errors", [])
+            if validation_errors:
+                print(f"\n🔍 Data Point Validation Errors:")
+                for error in validation_errors:
+                    print(f"\n📄 File: {error['file']}")
+                    print(f"   Instance ID: {error['instance_id']}")
+                    print(f"   Errors: {len(error['errors'])}")
+                    for i, err in enumerate(error['errors'], 1):
+                        print(f"     {i}. {err}")
+                    if error['warnings']:
+                        print(f"   Warnings: {len(error['warnings'])}")
+                        for i, warn in enumerate(error['warnings'], 1):
+                            print(f"     {i}. {warn}")
+            
+            # Display detailed error information
+            eval_results = results.get("evaluation", {})
+            if eval_results.get("error_details"):
+                error_details = eval_results["error_details"]
+                print(f"\n🔍 Error Analysis:")
+                print(f"   Type: {error_details.get('type', 'unknown')}")
+                print(f"   Message: {error_details.get('message', 'Unknown error')}")
+                if error_details.get('repository'):
+                    print(f"   Repository: {error_details['repository']}")
+                if error_details.get('suggestion'):
+                    print(f"   Suggestion: {error_details['suggestion']}")
             return
         
         # Display statistics

@@ -1,0 +1,5 @@
+{
+  "instance_id": "error_missing_multiple_fields",
+  "repo": "django/django",
+  "problem_statement": "Test with multiple missing fields"
+}
