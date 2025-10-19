@@ -70,13 +70,27 @@ jobs:
         run: |
           source .venv/bin/activate
           echo "🔍 Running enhanced validation on ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
-          # Run validation and capture output
+          
+          # Run validation and capture both stdout and stderr
           python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose --model-name gold > validation_output.log 2>&1
           validation_exit_code=$?
           
-          # Always capture output for PR comments
+          # Capture validation errors for detailed reporting
           echo "validation_output<<EOF" >> $GITHUB_OUTPUT
           cat validation_output.log >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Extract specific error details
+          echo "validation_errors<<EOF" >> $GITHUB_OUTPUT
+          if [ $validation_exit_code -ne 0 ]; then
+            echo "=== VALIDATION ERRORS DETECTED ==="
+            grep -E "(WARNING|ERROR|Failed|Empty required field|must be|invalid)" validation_output.log || echo "No specific error patterns found"
+            echo ""
+            echo "=== FULL VALIDATION LOG ==="
+            cat validation_output.log
+          else
+            echo "No validation errors detected"
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
           
           # Set validation status for later use
@@ -104,6 +118,7 @@ jobs:
             const instances = '${{ steps.changed.outputs.instances }}';
             const count = '${{ steps.changed.outputs.count }}';
             const validationOutput = `${{ steps.run-validation.outputs.validation_output }}`;
+            const validationErrors = `${{ steps.run-validation.outputs.validation_errors }}`;
             const validationSuccess = '${{ steps.run-validation.outputs.validation_success }}' === 'true';
             
             let comment = `# 🔍 Enhanced SWE-bench Validation Report\n\n`;
@@ -128,7 +143,14 @@ jobs:
             } else {
               comment += `## ❌ Enhanced Validation Failed\n\n`;
               comment += `🚨 **Validation failed!** Enhanced validation detected issues:\n\n`;
-              comment += `### 📋 Detailed Error Analysis\n`;
+              
+              // Show specific validation errors if available
+              if (validationErrors && validationErrors.trim() !== '') {
+                comment += `### 🔍 Specific Validation Errors\n`;
+                comment += `\`\`\`\n${validationErrors}\n\`\`\`\n\n`;
+              }
+              
+              comment += `### 📋 Full Validation Log\n`;
               comment += `\`\`\`\n${validationOutput}\n\`\`\`\n\n`;
               comment += `### 🔍 Enhanced Error Categories:\n`;
               comment += `- ❌ **Data Structure**: Missing or invalid required fields\n`;
@@ -138,7 +160,13 @@ jobs:
               comment += `- ❌ **Regression**: PASS_TO_PASS tests now fail\n`;
               comment += `- ❌ **Infrastructure**: Docker build/execution errors\n`;
               comment += `- ❌ **Timeout**: Test execution exceeded time limit\n`;
-              comment += `- ❌ **Validation**: Enhanced field validation failed\n`;
+              comment += `- ❌ **Validation**: Enhanced field validation failed\n\n`;
+              comment += `### 💡 How to Fix:\n`;
+              comment += `1. **Check required fields**: Ensure all required fields are present and valid\n`;
+              comment += `2. **Validate format**: Check that repo format is 'owner/repository'\n`;
+              comment += `3. **Verify commit**: Ensure base_commit is a valid 40-character SHA\n`;
+              comment += `4. **Test arrays**: Ensure FAIL_TO_PASS and PASS_TO_PASS are valid JSON arrays\n`;
+              comment += `5. **Patch format**: Verify patch starts with 'diff --git'\n`;
             }
             
             // Find existing validation comment
