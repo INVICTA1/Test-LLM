@@ -90,7 +90,11 @@ jobs:
             comment += `**Instances:** ${instances}\n`;
             comment += `**Architecture:** Modular with comprehensive validation\n\n`;
             
-            if (status === 'success') {
+            // Check if validation actually passed by looking at the output
+            const validationPassed = validationOutput.includes('🎉 All validations passed successfully!') || 
+                                   validationOutput.includes('✅ Resolved:') && !validationOutput.includes('❌ Unresolved:') && !validationOutput.includes('🚨 Errors:');
+            
+            if (validationPassed) {
               comment += `## ✅ All Validations Passed\n\n`;
               comment += `🎉 **Success!** Enhanced validation completed successfully:\n`;
               comment += `- ✅ **Data Structure**: All required fields validated\n`;
