@@ -66,6 +66,7 @@ jobs:
         id: run-validation
         if: steps.changed.outputs.count != '0'
         working-directory: task-release-2025-07-29-115124
+        continue-on-error: true
         run: |
           source .venv/bin/activate
           echo "🔍 Running enhanced validation on ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
@@ -81,8 +82,17 @@ jobs:
           # Set validation status for later use
           echo "validation_success=$([ $validation_exit_code -eq 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
           
-          # Exit with the validation result
-          exit $validation_exit_code
+          # Don't exit here - let the job continue to create PR comments
+      
+      - name: Check validation status
+        if: steps.changed.outputs.count != '0'
+        run: |
+          if [ "${{ steps.run-validation.outputs.validation_success }}" != "true" ]; then
+            echo "❌ Validation failed - blocking merge"
+            exit 1
+          else
+            echo "✅ Validation passed - allowing merge"
+          fi
       
       - name: Comment on PR
         if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
