@@ -109,15 +109,21 @@ class EnhancedValidator:
                 # Parse results
                 results = self._parse_results(data_points, verbose)
                 
-                # Combine all results
+                # Combine all results - validation fails if SWE-bench evaluation fails
                 final_results = {
-                    "success": evaluation_result["success"] and results["success"],
+                    "success": evaluation_result["success"],
                     "statistics": validation_summary,
                     "evaluation": evaluation_result,
                     "validation_results": results,
                     "data_points_processed": len(data_points),
                     "predictions_created": len(predictions)
                 }
+                
+                # Add error details if evaluation failed
+                if not evaluation_result["success"]:
+                    final_results["error"] = "SWE-bench evaluation failed"
+                    if "error_details" in evaluation_result:
+                        final_results["error_details"] = evaluation_result["error_details"]
                 
                 return final_results
                 
@@ -415,10 +421,19 @@ class EnhancedValidator:
                 print(f"   {status_emoji} {instance_id}: {status}")
         
         # Overall success message
-        if eval_results.get("success", False):
+        if results.get("success", False):
             print(f"\n🎉 All validations passed successfully!")
         else:
-            print(f"\n⚠️ Some validations failed. Check details above.")
+            print(f"\n❌ Validation failed: {results.get('error', 'Unknown error')}")
+            if "error_details" in results:
+                error_details = results["error_details"]
+                print(f"🔍 Error Analysis:")
+                print(f"   Type: {error_details.get('type', 'unknown')}")
+                print(f"   Message: {error_details.get('message', 'Unknown error')}")
+                if error_details.get('repository'):
+                    print(f"   Repository: {error_details['repository']}")
+                if error_details.get('suggestion'):
+                    print(f"   Suggestion: {error_details['suggestion']}")
     
     def get_summary_report(self, results: Dict[str, Any]) -> str:
         """Generate a summary report for GitHub Actions."""
