@@ -63,16 +63,64 @@ jobs:
         working-directory: task-release-2025-07-29-115124
         run: |
           source .venv/bin/activate
-          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800
+          echo "Validating ${{ steps.changed.outputs.count }} data point(s): ${{ steps.changed.outputs.instances }}"
+          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800 --verbose
       
-      - name: Summary
-        if: always() && steps.changed.outputs.count != '0'
-        run: |
-          echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
-          echo "Validated ${{ steps.changed.outputs.count }} data point(s)" >> $GITHUB_STEP_SUMMARY
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "✅ All data points are valid" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Validation failed - check logs for details" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const instances = '${{ steps.changed.outputs.instances }}';
+            const count = '${{ steps.changed.outputs.count }}';
+            
+            let comment = `# 🔍 SWE-bench Validation Report\n\n`;
+            comment += `**Validated:** ${count} data point(s)\n`;
+            comment += `**Instances:** ${instances}\n\n`;
+            
+            if (status === 'success') {
+              comment += `## ✅ All Validations Passed\n\n`;
+              comment += `🎉 **Success!** All data points are valid:\n`;
+              comment += `- ✅ Patches apply correctly\n`;
+              comment += `- ✅ FAIL_TO_PASS tests now pass\n`;
+              comment += `- ✅ PASS_TO_PASS tests continue to pass\n`;
+              comment += `- ✅ No Docker or execution errors\n`;
+            } else {
+              comment += `## ❌ Validation Failed\n\n`;
+              comment += `🚨 **Validation failed!** Possible issues:\n`;
+              comment += `- ❌ Patch doesn't apply to codebase\n`;
+              comment += `- ❌ FAIL_TO_PASS tests still fail\n`;
+              comment += `- ❌ PASS_TO_PASS tests now fail (regression)\n`;
+              comment += `- ❌ Docker build/execution errors\n`;
+              comment += `- ❌ Test execution timeout\n`;
+            }
+            
+            // Find existing validation comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('SWE-bench Validation Report')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
 

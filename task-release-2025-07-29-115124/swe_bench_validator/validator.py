@@ -9,9 +9,9 @@ import click
 
 
 def load_data_points(data_points_dir):
-    """Load all JSON data points from directory"""
+    """Load JSON data points from directory"""
     data_points = []
-    for json_file in sorted(Path(data_points_dir).glob("*.json")):
+    for json_file in Path(data_points_dir).glob("*.json"):
         try:
             with open(json_file) as f:
                 data = json.load(f)
@@ -27,17 +27,16 @@ def load_data_points(data_points_dir):
 @click.option('--instance-id', multiple=True, help='Validate specific instance(s)')
 @click.option('--max-workers', default=1, type=int, help='Parallel workers')
 @click.option('--timeout', default=900, type=int, help='Timeout per instance (seconds)')
-def main(data_points_dir, instance_id, max_workers, timeout):
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+def main(data_points_dir, instance_id, max_workers, timeout, verbose):
     """Validate SWE-bench data points using golden patches"""
     
-    # Load all data points
+    # Load and filter data points
     all_data_points = load_data_points(data_points_dir)
-    
     if not all_data_points:
         click.echo("No data points found", err=True)
         sys.exit(1)
     
-    # Filter by instance_id if specified
     if instance_id:
         instance_ids = set(instance_id)
         data_points = [dp for dp in all_data_points if dp["instance_id"] in instance_ids]
@@ -49,8 +48,11 @@ def main(data_points_dir, instance_id, max_workers, timeout):
         sys.exit(1)
     
     click.echo(f"Validating {len(data_points)} instance(s)")
+    if verbose:
+        for dp in data_points:
+            click.echo(f"  - {dp['instance_id']} ({dp.get('repo', 'unknown')})")
     
-    # Create temporary files for dataset and predictions
+    # Create temporary files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as df:
         for dp in data_points:
             df.write(json.dumps(dp) + '\n')
@@ -67,7 +69,7 @@ def main(data_points_dir, instance_id, max_workers, timeout):
         predictions_file = pf.name
     
     try:
-        # Run SWE-bench evaluation with local dataset
+        # Run SWE-bench evaluation
         cmd = [
             "python", "-m", "swebench.harness.run_evaluation",
             "--dataset_name", dataset_file,
@@ -77,9 +79,55 @@ def main(data_points_dir, instance_id, max_workers, timeout):
             "--run_id", "validation",
         ]
         
-        click.echo(f"Running evaluation...")
-        result = subprocess.run(cmd)
-        sys.exit(result.returncode)
+        click.echo("Running evaluation...")
+        if verbose:
+            click.echo(f"Command: {' '.join(cmd)}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Parse results from logs
+        logs_dir = Path("logs/run_evaluation/validation/gold")
+        resolved = 0
+        unresolved = 0
+        errors = 0
+        
+        for result_file in logs_dir.glob("**/results.jsonl"):
+            try:
+                with open(result_file) as f:
+                    for line in f:
+                        if line.strip():
+                            result_data = json.loads(line)
+                            status = result_data.get("status", "unknown")
+                            if status == "RESOLVED":
+                                resolved += 1
+                            elif status == "UNRESOLVED":
+                                unresolved += 1
+                            else:
+                                errors += 1
+            except Exception:
+                pass
+        
+        # Display results
+        click.echo(f"\nResults: ✅ {resolved} resolved, ❌ {unresolved} unresolved, 🚨 {errors} errors")
+        
+        if verbose and (result.stdout or result.stderr):
+            click.echo(f"\nSTDOUT: {result.stdout}")
+            click.echo(f"STDERR: {result.stderr}")
+        
+        # Exit with appropriate code
+        if unresolved > 0 or errors > 0:
+            click.echo(f"\n❌ Validation failed: {unresolved} unresolved, {errors} errors")
+            sys.exit(1)
+        else:
+            click.echo(f"\n✅ All validations passed!")
+            sys.exit(0)
+        
+    except Exception as e:
+        click.echo(f"❌ Validation error: {e}", err=True)
+        if verbose:
+            import traceback
+            click.echo(traceback.format_exc(), err=True)
+        sys.exit(1)
         
     finally:
         Path(dataset_file).unlink(missing_ok=True)
