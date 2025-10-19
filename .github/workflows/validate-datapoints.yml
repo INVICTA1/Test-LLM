@@ -2,77 +2,238 @@ name: Validate SWE-bench Data Points
 
 on:
   push:
-    paths:
-      - 'task-release-2025-07-29-115124/data_points/**/*.json'
+    branches: [ main, develop ]
+    paths: [ 'task-release-2025-07-29-115124/data_points/**' ]
   pull_request:
-    paths:
-      - 'task-release-2025-07-29-115124/data_points/**/*.json'
+    branches: [ main, develop ]
+    paths: [ 'task-release-2025-07-29-115124/data_points/**' ]
 
 jobs:
-  validate:
+  validate-datapoints:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Get changed files
-        id: changed
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep 'data_points/.*\.json$' | xargs -I{} basename {} .json || true)
-          else
-            FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} | grep 'data_points/.*\.json$' | xargs -I{} basename {} .json || true)
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changed files detection
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install UV
+      run: pip install uv
+    
+    - name: Install dependencies
+      working-directory: ./task-release-2025-07-29-115124
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install swebench>=4.0.4
+    
+    - name: Detect changed data point files
+      id: changed-files
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For PRs, compare against base branch
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_SHA...HEAD | grep '^task-release-2025-07-29-115124/data_points/.*\.json$' || true)
+        else
+          # For pushes, check last commit
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '^task-release-2025-07-29-115124/data_points/.*\.json$' || true)
+        fi
+        
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No changed data point files found"
+          echo "changed_files=" >> $GITHUB_OUTPUT
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changed files: $CHANGED_FILES"
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Validate changed data points
+      if: steps.changed-files.outputs.has_changes == 'true'
+      id: validation
+      working-directory: ./task-release-2025-07-29-115124
+      run: |
+        echo "Validating changed data point files..."
+        
+        # Create validation results file
+        VALIDATION_RESULTS="/tmp/validation_results.json"
+        echo '{"valid": [], "invalid": [], "errors": []}' > $VALIDATION_RESULTS
+        
+        # Process each changed file
+        for file in ${{ steps.changed-files.outputs.changed_files }}; do
+          echo "Validating: $file"
+          
+          # Check if file exists and is valid JSON
+          if [ ! -f "$file" ]; then
+            echo "ERROR: File $file does not exist"
+            echo "{\"file\": \"$file\", \"error\": \"File does not exist\", \"type\": \"file_not_found\"}" >> /tmp/errors.jsonl
+            continue
           fi
           
-          if [ -z "$FILES" ]; then
-            echo "No data point files changed"
-            echo "count=0" >> $GITHUB_OUTPUT
-            exit 0
+          # Validate JSON structure
+          if ! python -c "
+          import json
+          import sys
+          try:
+              with open('$file', 'r') as f:
+                  data = json.load(f)
+              required_fields = ['repo', 'instance_id', 'base_commit', 'patch', 'FAIL_TO_PASS', 'PASS_TO_PASS']
+              missing_fields = [field for field in required_fields if field not in data]
+              if missing_fields:
+                  print(f'Missing required fields: {missing_fields}')
+                  sys.exit(1)
+              
+              # Check if FAIL_TO_PASS and PASS_TO_PASS are lists or JSON strings
+              try:
+                  if isinstance(data['FAIL_TO_PASS'], str):
+                      json.loads(data['FAIL_TO_PASS'])
+                  elif not isinstance(data['FAIL_TO_PASS'], list):
+                      print('FAIL_TO_PASS must be a list or JSON string')
+                      sys.exit(1)
+              except json.JSONDecodeError:
+                  print('FAIL_TO_PASS must be valid JSON if it is a string')
+                  sys.exit(1)
+              
+              try:
+                  if isinstance(data['PASS_TO_PASS'], str):
+                      json.loads(data['PASS_TO_PASS'])
+                  elif not isinstance(data['PASS_TO_PASS'], list):
+                      print('PASS_TO_PASS must be a list or JSON string')
+                      sys.exit(1)
+              except json.JSONDecodeError:
+                  print('PASS_TO_PASS must be valid JSON if it is a string')
+                  sys.exit(1)
+              
+              print('JSON structure valid')
+          except json.JSONDecodeError as e:
+              print(f'Invalid JSON: {e}')
+              sys.exit(1)
+          except Exception as e:
+              print(f'Validation error: {e}')
+              sys.exit(1)
+          " 2>&1; then
+            echo "ERROR: Invalid JSON structure in $file"
+            echo "{\"file\": \"$file\", \"error\": \"Invalid JSON structure or missing required fields\", \"type\": \"json_validation\"}" >> /tmp/errors.jsonl
+            continue
           fi
           
-          # Convert to --instance-id arguments
-          INSTANCES=""
-          for f in $FILES; do
-            INSTANCES="$INSTANCES --instance-id $f"
-          done
+          echo "✓ $file - JSON structure valid"
+          echo "{\"file\": \"$file\", \"status\": \"valid_json\"}" >> /tmp/valid.jsonl
+        done
+        
+        # Count results
+        VALID_COUNT=$(wc -l < /tmp/valid.jsonl 2>/dev/null || echo "0")
+        ERROR_COUNT=$(wc -l < /tmp/errors.jsonl 2>/dev/null || echo "0")
+        
+        echo "Validation summary:"
+        echo "  Valid files: $VALID_COUNT"
+        echo "  Invalid files: $ERROR_COUNT"
+        
+        # Set outputs
+        echo "valid_count=$VALID_COUNT" >> $GITHUB_OUTPUT
+        echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+        
+        # Create summary for status check
+        if [ $ERROR_COUNT -gt 0 ]; then
+          echo "validation_passed=false" >> $GITHUB_OUTPUT
+          echo "## ❌ Data Point Validation Failed" > /tmp/validation_summary.md
+          echo "" >> /tmp/validation_summary.md
+          echo "The following data point files have validation errors:" >> /tmp/validation_summary.md
+          echo "" >> /tmp/validation_summary.md
+          while IFS= read -r line; do
+            file=$(echo "$line" | jq -r '.file')
+            error=$(echo "$line" | jq -r '.error')
+            echo "- **$file**: $error" >> /tmp/validation_summary.md
+          done < /tmp/errors.jsonl
+        else
+          echo "validation_passed=true" >> $GITHUB_OUTPUT
+          echo "## ✅ Data Point Validation Passed" > /tmp/validation_summary.md
+          echo "" >> /tmp/validation_summary.md
+          echo "All changed data point files have valid JSON structure and required fields." >> /tmp/validation_summary.md
+        fi
+    
+    - name: Report validation results
+      if: steps.changed-files.outputs.has_changes == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const { execSync } = require('child_process');
           
-          echo "instances=$INSTANCES" >> $GITHUB_OUTPUT
-          echo "count=$(echo $FILES | wc -w)" >> $GITHUB_OUTPUT
-          echo "Changed instances: $INSTANCES"
-      
-      - name: Setup Python
-        if: steps.changed.outputs.count != '0'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      
-      - name: Install dependencies
-        if: steps.changed.outputs.count != '0'
-        working-directory: task-release-2025-07-29-115124
-        run: |
-          pip install uv
-          uv venv
-          uv pip install -e .
-      
-      - name: Run validation
-        if: steps.changed.outputs.count != '0'
-        working-directory: task-release-2025-07-29-115124
-        run: |
-          source .venv/bin/activate
-          python -m swe_bench_validator data_points ${{ steps.changed.outputs.instances }} --max-workers 2 --timeout 1800
-      
-      - name: Summary
-        if: always() && steps.changed.outputs.count != '0'
-        run: |
-          echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
-          echo "Validated ${{ steps.changed.outputs.count }} data point(s)" >> $GITHUB_STEP_SUMMARY
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "✅ All data points are valid" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Validation failed - check logs for details" >> $GITHUB_STEP_SUMMARY
-          fi
-
+          // Read validation results
+          const summary = fs.readFileSync('/tmp/validation_summary.md', 'utf8');
+          const validCount = parseInt('${{ steps.validation.outputs.valid_count }}');
+          const errorCount = parseInt('${{ steps.validation.outputs.error_count }}');
+          const validationPassed = '${{ steps.validation.outputs.validation_passed }}' === 'true';
+          
+          // Create status check
+          const status = validationPassed ? 'success' : 'failure';
+          const conclusion = validationPassed ? 'success' : 'failure';
+          
+          // Post status check
+          await github.rest.checks.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            name: 'SWE-bench Data Point Validation',
+            head_sha: context.sha,
+            status: 'completed',
+            conclusion: conclusion,
+            output: {
+              title: validationPassed ? 'All data points valid' : 'Data point validation failed',
+              summary: summary,
+              annotations: errorCount > 0 ? [
+                {
+                  path: 'task-release-2025-07-29-115124/data_points/',
+                  start_line: 1,
+                  end_line: 1,
+                  annotation_level: 'failure',
+                  message: `${errorCount} data point file(s) failed validation`
+                }
+              ] : []
+            }
+          });
+          
+          // Comment on PR if this is a pull request
+          if (context.eventName === 'pull_request') {
+            const comment = `## 🔍 SWE-bench Data Point Validation Results
+            
+            ${summary}
+            
+            **Summary:**
+            - ✅ Valid files: ${validCount}
+            - ❌ Invalid files: ${errorCount}
+            
+            ${validationPassed ? 
+              'All data point files passed validation! 🎉' : 
+              'Please fix the validation errors before merging. 🔧'
+            }`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
+    
+    - name: Fail if validation failed
+      if: steps.changed-files.outputs.has_changes == 'true' && steps.validation.outputs.validation_passed == 'false'
+      run: |
+        echo "❌ Data point validation failed!"
+        echo "Please fix the validation errors before merging."
+        exit 1
+    
+    - name: Success message
+      if: steps.changed-files.outputs.has_changes == 'true' && steps.validation.outputs.validation_passed == 'true'
+      run: |
+        echo "✅ All data point files passed validation!"
+        echo "Ready for merge."
