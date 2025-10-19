@@ -1,34 +1,48 @@
-# Ignore git and cache files
-.git
-.gitignore
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache
+*.egg-info/
+dist/
+build/
+*.egg
 
-# Ignore IDE files
-.vscode
-.idea
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
 *.swp
 *.swo
+*~
 
-# Ignore OS files
-.DS_Store
-Thumbs.db
+# Git
+.git/
+.gitignore
 
-# Ignore output directories
+# Output and temporary files
 output/
 *.log
+.DS_Store
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
