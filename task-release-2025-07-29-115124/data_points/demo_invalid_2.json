@@ -1,0 +1,20 @@
+{
+  "repo": "django/django",
+  "instance_id": "",
+  "base_commit": "8a0b0a8b0a8b0a8b0a8b0a8b0a8b0a8b0a8b0a8b0a",
+  "patch": "diff --git a/django/contrib/admin/static/admin/css/base.css b/django/contrib/admin/static/admin/css/base.css\n--- a/django/contrib/admin/static/admin/css/base.css\n+++ b/django/contrib/admin/static/admin/css/base.css\n@@ -1,7 +1,7 @@\n /*\n  * Django admin styles\n  */\n \n-/* Base styles */\n+/* Base styles for admin interface */\n .admin-interface {\n     font-family: Arial, sans-serif;\n     color: #333;\n@@ -10,7 +10,7 @@\n     margin: 0;\n     padding: 0;\n }\n-\n+/* Navigation styles */\n .admin-nav {\n     background-color: #417690;\n     color: white;\n@@ -20,7 +20,7 @@\n     padding: 10px 20px;\n }\n \n-/* Content area */\n+/* Main content area */\n .admin-content {\n     padding: 20px;\n     background-color: #f8f8f8;\n@@ -30,7 +30,7 @@\n     min-height: 400px;\n }\n \n-/* Form styles */\n+/* Form and input styles */\n .admin-form {\n     background-color: white;\n     padding: 20px;\n@@ -45,7 +45,7 @@\n     border: 1px solid #ddd;\n }\n \n-/* Button styles */\n+/* Action button styles */\n .admin-button {\n     background-color: #417690;\n     color: white;\n@@ -60,7 +60,7 @@\n     cursor: pointer;\n }\n \n-/* Table styles */\n+/* Data table styles */\n .admin-table {\n     width: 100%;\n     border-collapse: collapse;\n@@ -80,7 +80,7 @@\n     background-color: #f5f5f5;\n }\n \n-/* Responsive design */\n+/* Mobile responsive design */\n @media (max-width: 768px) {\n     .admin-content {\n         padding: 10px;\n@@ -90,3 +90,4 @@\n     .admin-table {\n         font-size: 14px;\n     }\n+}\n",
+  "test_patch": "diff --git a/django/contrib/admin/tests/test_static.py b/django/contrib/admin/tests/test_static.py\n--- a/django/contrib/admin/tests/test_static.py\n+++ b/django/contrib/admin/tests/test_static.py\n@@ -1,5 +1,5 @@\n from django.test import TestCase\n-from django.contrib.admin.tests.utils import AdminTestCase\n+from django.contrib.admin.tests.utils import AdminTestCase\n from django.contrib.admin.sites import AdminSite\n from django.contrib.admin.models import LogEntry\n from django.contrib.auth.models import User\n@@ -10,7 +10,7 @@\n \n class AdminStaticTestCase(AdminTestCase):\n     \"\"\"Test case for admin static files\"\"\"\n-    \n+    \n     def test_admin_css_loading(self):\n         \"\"\"Test that admin CSS files load correctly\"\"\n         response = self.client.get('/admin/')\n@@ -20,7 +20,7 @@\n         # Check that base.css is included\n         self.assertContains(response, 'base.css')\n         \n-    def test_admin_js_loading(self):\n+    def test_admin_js_loading(self):\n         \"\"\"Test that admin JavaScript files load correctly\"\"\n         response = self.client.get('/admin/')\n@@ -30,7 +30,7 @@\n         # Check that admin.js is included\n         self.assertContains(response, 'admin.js')\n         \n-    def test_admin_responsive_design(self):\n+    def test_admin_responsive_design(self):\n         \"\"\"Test that admin interface is responsive\"\"\n         response = self.client.get('/admin/')\n@@ -40,3 +40,4 @@\n         # Check for responsive meta tag\n         self.assertContains(response, 'viewport')\n         \n+        # Check for mobile-friendly styles\n+        self.assertContains(response, 'max-width: 768px')\n",
+  "problem_statement": "Admin interface CSS needs better organization",
+  "hints_text": "This is an invalid data point with empty instance_id",
+  "created_at": "2025-01-01T00:00:00Z",
+  "version": "4.2",
+  "FAIL_TO_PASS": ["django/contrib/admin/tests/test_static.py::test_admin_css_loading"],
+  "PASS_TO_PASS": ["django/contrib/admin/tests/test_static.py::test_admin_js_loading"],
+  "environment_setup_commit": "0000000000000000000000000000000000000000",
+  "_download_metadata": {
+    "downloaded_at": "2025-01-01T00:00:00.000000",
+    "dataset_name": "test/test",
+    "split": "test",
+    "downloader_version": "0.1.0"
+  }
+}
