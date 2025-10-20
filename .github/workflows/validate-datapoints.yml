@@ -101,10 +101,27 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
+            const path = require('path');
             const status = '${{ job.status }}';
             const instances = '${{ steps.changed.outputs.instances }}';
             const count = '${{ steps.changed.outputs.count }}';
-            const validationOutput = `${{ steps.run-validation.outputs.validation_output }}`;
+            // Prefer reading the log file directly to avoid output size truncation
+            const logPath = path.join(process.cwd(), 'task-release-2025-07-29-115124', 'validation_output.log');
+            let validationOutput = '';
+            try {
+              let content = fs.readFileSync(logPath, 'utf8');
+              // Limit to last ~60k chars to fit GitHub comment limits
+              const MAX_LEN = 60000;
+              if (content.length > MAX_LEN) {
+                content = content.slice(-MAX_LEN);
+                content = '... (truncated) ...\n' + content;
+              }
+              validationOutput = content;
+            } catch (e) {
+              // Fallback to step output if reading file fails
+              validationOutput = `${{ steps.run-validation.outputs.validation_output }}`;
+            }
             const validationSuccess = '${{ steps.run-validation.outputs.validation_success }}' === 'true';
             
             let comment = `# 🔍 Enhanced SWE-bench Validation Report\n\n`;
