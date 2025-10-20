@@ -124,39 +124,23 @@ jobs:
             }
             const validationSuccess = '${{ steps.run-validation.outputs.validation_success }}' === 'true';
             
-            let comment = `# 🔍 Enhanced SWE-bench Validation Report\n\n`;
-            comment += `**Validated:** ${count} data point(s)\n`;
-            comment += `**Instances:** ${instances}\n`;
-            comment += `**Architecture:** Modular with comprehensive validation\n\n`;
+            let comment = `## SWE-bench Validation\n`;
+            comment += `- **Validated:** ${count} data point(s)\n`;
+            comment += `- **Instances:** ${instances}\n`;
             
             // Use the actual validation success status
             const validationPassed = validationSuccess;
             
             if (validationPassed) {
-              comment += `## ✅ All Validations Passed\n\n`;
-              comment += `🎉 **Success!** Enhanced validation completed successfully:\n`;
-              comment += `- ✅ **Data Structure**: All required fields validated\n`;
-              comment += `- ✅ **Patches**: Apply correctly to codebase\n`;
-              comment += `- ✅ **Tests**: FAIL_TO_PASS tests now pass\n`;
-              comment += `- ✅ **Regression**: PASS_TO_PASS tests continue to pass\n`;
-              comment += `- ✅ **Infrastructure**: No Docker or execution errors\n`;
-              comment += `- ✅ **Statistics**: Comprehensive reporting available\n\n`;
-              comment += `### 📋 Enhanced Validation Details\n`;
-              comment += `\`\`\`\n${validationOutput}\n\`\`\``;
+              comment += `- **Status:** ✅ Passed\n\n`;
+              comment += `<details><summary>Logs</summary>\n\n`;
+              comment += `\n\n\`\`\`\n${validationOutput}\n\`\`\`\n`;
+              comment += `\n</details>`;
             } else {
-              comment += `## ❌ Enhanced Validation Failed\n\n`;
-              comment += `🚨 **Validation failed!** Enhanced validation detected issues:\n\n`;
-              comment += `### 📋 Detailed Error Analysis\n`;
-              comment += `\`\`\`\n${validationOutput}\n\`\`\`\n\n`;
-              comment += `### 🔍 Enhanced Error Categories:\n`;
-              comment += `- ❌ **Data Structure**: Missing or invalid required fields\n`;
-              comment += `- ❌ **Repository**: Unknown or unsupported repository\n`;
-              comment += `- ❌ **Patch Format**: Invalid patch format or content\n`;
-              comment += `- ❌ **Test Logic**: FAIL_TO_PASS tests still fail\n`;
-              comment += `- ❌ **Regression**: PASS_TO_PASS tests now fail\n`;
-              comment += `- ❌ **Infrastructure**: Docker build/execution errors\n`;
-              comment += `- ❌ **Timeout**: Test execution exceeded time limit\n`;
-              comment += `- ❌ **Validation**: Enhanced field validation failed\n`;
+              comment += `- **Status:** ❌ Failed\n\n`;
+              comment += `<details open><summary>Logs</summary>\n\n`;
+              comment += `\n\n\`\`\`\n${validationOutput}\n\`\`\`\n`;
+              comment += `\n</details>`;
             }
             
             // Find existing validation comment
