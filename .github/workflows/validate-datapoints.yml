@@ -86,6 +86,7 @@ jobs:
       
       - name: Check validation status
         if: steps.changed.outputs.count != '0'
+        continue-on-error: true
         run: |
           if [ "${{ steps.run-validation.outputs.validation_success }}" != "true" ]; then
             echo "❌ Validation failed - blocking merge"
@@ -95,7 +96,7 @@ jobs:
           fi
       
       - name: Comment on PR
-        if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
+        if: always() && github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -168,4 +169,33 @@ jobs:
                 body: comment
               });
             }
+
+      - name: Upload validation logs artifact
+        if: always() && steps.changed.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-logs
+          path: task-release-2025-07-29-115124/validation_output.log
+          if-no-files-found: ignore
+
+      - name: Add job summary
+        if: always() && steps.changed.outputs.count != '0'
+        run: |
+          {
+            echo "# 🔍 Enhanced SWE-bench Validation Report";
+            echo "**Validated:** ${{ steps.changed.outputs.count }} data point(s)";
+            echo "**Instances:** ${{ steps.changed.outputs.instances }}";
+            echo "**Result:** $([ "${{ steps.run-validation.outputs.validation_success }}" = "true" ] && echo '✅ Passed' || echo '❌ Failed')";
+            echo;
+            echo "## Logs";
+            echo "\n<details open><summary>Show full logs</summary>\n";
+            echo '```';
+            cat task-release-2025-07-29-115124/validation_output.log || true;
+            echo '```';
+            echo "\n</details>";
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail job if validation failed
+        if: steps.changed.outputs.count != '0' && steps.run-validation.outputs.validation_success != 'true'
+        run: exit 1
 
