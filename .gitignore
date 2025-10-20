@@ -1,0 +1,106 @@
+*.py[cod]
+
+# C extensions
+*.so
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+include
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+
+# Translations
+*.mo
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+*.*~
+*.log
+*.err
+*.pid
+*.cmd
+
+.ropeproject/*
+.idea/*
+.Python
+.vagrant
+*.sublime-workspace
+*.sublime-project
+*.rabbitmq
+
+**/postgres_data/*
+**/staticfiles/*
+
+bin/*
+docs/_build/*
+etc/*
+include/*
+lib/*
+/local
+/local/*
+log/*
+media/*
+share/*
+static/*
+tmp/*
+var/*
+arena/*
+venvs/*
+
+# ignore secrets
+configs/secrets.json
+docker/ssh/id_rsa
+
+# ignore sandbox
+sandbox/*
+
+
+# ignore docker image artifacts
+.build-commit
+.build-tag
+.build-version
+app.tar.gz
+classic.tar.gz
+frontend.tar.gz
+
+# Mac file-system specific files
+.DS_Store
+
+# Visual Studio Code caches
+.vscode/*
+
+# mypy
+.mypy_cache/
+
+# vim swap files
+*.swp
+
+# Git
+.git/
+
+db.sqlite3
+
+#env
+.env
+
+#media
+config/upload
+rabbitmq/
