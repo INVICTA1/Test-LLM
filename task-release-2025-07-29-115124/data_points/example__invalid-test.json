@@ -1,0 +1,20 @@
+{
+  "repo": "example/invalid-repo",
+  "instance_id": "example__invalid-test",
+  "base_commit": "def456ghi789",
+  "patch": "diff --git a/src/main.py b/src/main.py\n--- a/src/main.py\n+++ b/src/main.py\n@@ -1,3 +1,6 @@\n def hello():\n-    print(\"Hello\")\n+    print(\"Hello World\")\n+\n+def goodbye():\n+    print(\"Goodbye\")\n",
+  "test_patch": "diff --git a/tests/test_main.py b/tests/test_main.py\n--- a/tests/test_main.py\n+++ b/tests/test_main.py\n@@ -0,0 +1,8 @@\n+import unittest\n+from src.main import hello, goodbye\n+\n+class TestMain(unittest.TestCase):\n+    def test_hello(self):\n+        self.assertEqual(hello(), \"Hello World\")\n+\n+    def test_goodbye(self):\n+        self.assertEqual(goodbye(), \"Goodbye\")\n",
+  "problem_statement": "Add goodbye function to main.py - but patch is incomplete",
+  "hints_text": "This is an example of an invalid data point - the patch doesn't actually fix the issue",
+  "created_at": "2025-01-15T10:00:00Z",
+  "version": "1.0",
+  "FAIL_TO_PASS": "[\"tests.test_main.TestMain.test_hello\"]",
+  "PASS_TO_PASS": "[\"tests.test_main.TestMain.test_goodbye\"]",
+  "environment_setup_commit": "def456ghi789",
+  "_download_metadata": {
+    "downloaded_at": "2025-01-15T10:00:00.000000",
+    "dataset_name": "example",
+    "split": "test",
+    "downloader_version": "0.1.0"
+  }
+}
